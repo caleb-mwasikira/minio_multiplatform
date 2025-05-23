@@ -36,8 +36,9 @@ actual suspend fun copyFiles(
 
     val contentResolver = ContextProvider.get().contentResolver
 
-    while (!stack.isEmpty()) {
-        val file = stack.pop() ?: continue
+    while (stack.isNotEmpty()) {
+        val file =
+            stack.pop() ?: throw IllegalStateException("Stack isNotEmpty() function is broken")
 
         try {
             if (file.isDirectory) {
@@ -94,8 +95,9 @@ actual suspend fun moveFiles(
 
     val contentResolver = ContextProvider.get().contentResolver
 
-    while (!stack.isEmpty()) {
-        val file = stack.pop() ?: continue
+    while (stack.isNotEmpty()) {
+        val file =
+            stack.pop() ?: throw IllegalStateException("Stack isNotEmpty() function is broken")
 
         try {
             if (file.isDirectory) {

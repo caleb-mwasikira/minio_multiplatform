@@ -28,8 +28,8 @@ class Stack<T : Any> {
         return items.removeLastOrNull()
     }
 
-    fun isEmpty(): Boolean {
-        return items.isEmpty()
+    fun isNotEmpty(): Boolean {
+        return items.isNotEmpty()
     }
 
     fun clear() {

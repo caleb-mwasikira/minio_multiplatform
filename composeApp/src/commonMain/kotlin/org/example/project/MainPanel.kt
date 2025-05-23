@@ -1,5 +1,8 @@
 package org.example.project
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -7,6 +10,7 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,10 +31,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,18 +46,22 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import minio_multiplatform.composeapp.generated.resources.Res
 import minio_multiplatform.composeapp.generated.resources.chevron_left_24dp
 import minio_multiplatform.composeapp.generated.resources.chevron_right_24dp
 import minio_multiplatform.composeapp.generated.resources.external_hard_drive
 import minio_multiplatform.composeapp.generated.resources.menu_24dp
 import minio_multiplatform.composeapp.generated.resources.notifications_24dp
-import minio_multiplatform.composeapp.generated.resources.person_24dp
 import minio_multiplatform.composeapp.generated.resources.search_24dp
+import minio_multiplatform.composeapp.generated.resources.send_24dp
 import minio_multiplatform.composeapp.generated.resources.visibility_24dp
 import minio_multiplatform.composeapp.generated.resources.visibility_off_24dp
 import org.example.project.data.FileType
 import org.example.project.data.SharedViewModel
+import org.example.project.data.UIMessages
 import org.example.project.widgets.FilesGrid
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -65,9 +75,12 @@ fun MainPanel(
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(32.dp),
-        modifier = modifier,
+        modifier = modifier.padding(8.dp),
     ) {
-        TopBar(onOpenDrawer = onOpenDrawer)
+        TopBar(
+            sharedViewModel = sharedViewModel,
+            onOpenDrawer = onOpenDrawer,
+        )
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(24.dp),
@@ -96,22 +109,64 @@ fun MainPanel(
             }
         )
 
-        // MyFiles
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            FilesActionBar(sharedViewModel)
+        Box {
+            // MyFiles
+            Box {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    FilesActionBar(sharedViewModel)
 
-            FilesGrid(
-                sharedViewModel = sharedViewModel
-            )
+                    FilesGrid(
+                        sharedViewModel = sharedViewModel
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier.align(Alignment.BottomEnd)
+            ) {
+                var message by remember { mutableStateOf<UIMessages?>(null) }
+
+                LaunchedEffect(Unit) {
+                    sharedViewModel.uiMessages.collectLatest {
+                        message = it
+                        delay(5000)
+                        message = null
+                    }
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    message?.let {
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = slideInVertically { it },
+                            exit = slideOutVertically { it },
+                        ) {
+                            Card(
+                                modifier = Modifier
+                                    .padding(horizontal = 12.dp)
+                            ) {
+                                Text(
+                                    it.message,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
 fun TopBar(
+    sharedViewModel: SharedViewModel,
     onOpenDrawer: (() -> Unit)?,
 ) {
     Row(
@@ -130,20 +185,25 @@ fun TopBar(
                     Icon(
                         painter = painterResource(Res.drawable.menu_24dp),
                         contentDescription = "Menu",
-                        modifier = Modifier.size(28.dp)
-                            .weight(1f)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
 
-            var searchText by remember { mutableStateOf("") }
+            var text by remember { mutableStateOf("") }
+            val scope = rememberCoroutineScope()
+
+            LaunchedEffect(text) {
+                if (text.isEmpty()) {
+                    sharedViewModel.refreshCurrentDir()
+                }
+            }
 
             TextField(
-                value = searchText,
+                value = text,
                 onValueChange = { newText ->
-                    searchText = newText
+                    text = newText
                 },
-                modifier = Modifier.weight(2f),
                 leadingIcon = {
                     Icon(
                         painter = painterResource(Res.drawable.search_24dp),
@@ -151,11 +211,29 @@ fun TopBar(
                         modifier = Modifier.size(24.dp)
                     )
                 },
+                trailingIcon = {
+                    IconButton(
+                        onClick = {
+                            if (text.isNotEmpty()) {
+                                scope.launch {
+                                    sharedViewModel.searchFilesWithName(text)
+                                }
+                            }
+                        },
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                    ) {
+                        Icon(
+                            painter = painterResource(Res.drawable.send_24dp),
+                            contentDescription = "Search",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
                 shape = RoundedCornerShape(12.dp),
                 placeholder = {
                     Text(
                         "Search for files",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                     )
                 },
                 singleLine = true,
@@ -168,13 +246,12 @@ fun TopBar(
                     unfocusedIndicatorColor = Color.Transparent, // removes underline when not focused
                     disabledIndicatorColor = Color.Transparent // removes underline when disabled
                 ),
-                textStyle = MaterialTheme.typography.titleMedium,
+                textStyle = MaterialTheme.typography.titleLarge,
             )
         }
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f)
         ) {
             IconButton(
                 onClick = {},
@@ -183,18 +260,7 @@ fun TopBar(
                 Icon(
                     painter = painterResource(Res.drawable.notifications_24dp),
                     contentDescription = "Notifications",
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-
-            IconButton(
-                onClick = {},
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-            ) {
-                Icon(
-                    painter = painterResource(Res.drawable.person_24dp),
-                    contentDescription = "User Profile",
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
@@ -316,18 +382,6 @@ fun FilesActionBar(
 }
 
 @Composable
-fun getContainerColor(isSelected: Boolean, isHovered: Boolean): Color {
-    if (isSelected) {
-        return MaterialTheme.colorScheme.primary
-    }
-
-    if (isHovered) {
-        return MaterialTheme.colorScheme.primaryContainer
-    }
-    return MaterialTheme.colorScheme.surfaceContainer
-}
-
-@Composable
 fun FilterItem(
     label: String,
     icon: DrawableResource,
@@ -336,7 +390,13 @@ fun FilterItem(
 ) {
     val localInteractionSource = remember { MutableInteractionSource() }
     val isHovered by localInteractionSource.collectIsHoveredAsState()
-    val containerColor = getContainerColor(isSelected, isHovered)
+    val containerColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary
+    } else if (isHovered) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainer
+    }
     val contentColor = if (isSelected || isHovered) {
         MaterialTheme.colorScheme.onPrimary
     } else {

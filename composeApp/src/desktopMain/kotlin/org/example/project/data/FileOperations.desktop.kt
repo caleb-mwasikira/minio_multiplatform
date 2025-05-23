@@ -95,15 +95,16 @@ actual suspend fun deleteFiles(files: List<DirEntry>): List<FileError> =
         for (file in files) {
             try {
                 val source = File(file.path)
-                val result = if(source.isDirectory) {
+                val result = if (source.isDirectory) {
                     source.deleteRecursively()
                 } else {
                     source.delete()
                 }
-                if(!result) {
+                if (!result) {
                     fileErrors.add(
                         FileError(
-                            file = file, exception = IOException("Failed to delete file/directory ${file.path}")
+                            file = file,
+                            exception = IOException("Failed to delete file/directory ${file.path}")
                         )
                     )
                 }

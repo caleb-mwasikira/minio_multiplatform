@@ -4,16 +4,19 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -29,6 +32,7 @@ import minio_multiplatform.composeapp.generated.resources.delete_24dp
 import org.example.project.data.ClipboardAction
 import org.example.project.data.DirEntry
 import org.example.project.data.SharedViewModel
+import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 
 @Composable
@@ -50,7 +54,8 @@ actual fun ContextMenu(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .padding(horizontal = 8.dp)
+                .height(72.dp),
             colors = CardDefaults.cardColors().copy(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -58,55 +63,66 @@ actual fun ContextMenu(
         ) {
             Row(
                 modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(
+                ContextMenuItem(
+                    title = "Copy",
+                    resource = Res.drawable.content_copy_24dp,
                     onClick = {
                         sharedViewModel.addPasteBin(selectedFiles, ClipboardAction.Copy)
                         onDismissRequest()
-                    }
-                ) {
-                    Icon(
-                        painter = painterResource(Res.drawable.content_copy_24dp),
-                        contentDescription = "Copy",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(
+                    },
+                )
+                ContextMenuItem(
+                    title = "Cut",
+                    resource = Res.drawable.content_cut_24dp,
                     onClick = {
                         sharedViewModel.addPasteBin(selectedFiles, ClipboardAction.Cut)
                         onDismissRequest()
-                    }
-                ) {
-                    Icon(
-                        painter = painterResource(Res.drawable.content_cut_24dp),
-                        contentDescription = "Cut",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(
+                    },
+                )
+                ContextMenuItem(
+                    title = "Paste",
+                    resource = Res.drawable.content_paste_24dp,
                     onClick = {
                         scope.launch {
                             sharedViewModel.paste()
                         }
                         onDismissRequest()
                     }
-                ) {
-                    Icon(
-                        painter = painterResource(Res.drawable.content_paste_24dp),
-                        contentDescription = "Paste",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(onClick = onDeleteRequest) {
-                    Icon(
-                        painter = painterResource(Res.drawable.delete_24dp),
-                        contentDescription = "Delete",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                )
+                ContextMenuItem(
+                    title = "Delete",
+                    resource = Res.drawable.delete_24dp,
+                    onClick = onDeleteRequest,
+                )
             }
         }
+    }
+}
+
+@Composable
+fun ContextMenuItem(
+    title: String,
+    resource: DrawableResource,
+    onClick: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        IconButton(
+            onClick = onClick,
+        ) {
+            Icon(
+                painter = painterResource(resource),
+                contentDescription = title,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Text(
+            title,
+            style = MaterialTheme.typography.labelMedium,
+        )
     }
 }

@@ -5,6 +5,9 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,12 +16,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.io.path.Path
 
 sealed class UIMessages {
-    data class Error(val message: String) : UIMessages()
-    data class Info(val message: String) : UIMessages()
-    data class Warn(val message: String) : UIMessages()
+    abstract val message: String
+
+    data class Error(override val message: String) : UIMessages()
+    data class Info(override val message: String) : UIMessages()
+    data class Warn(override val message: String) : UIMessages()
 }
 
 class SharedViewModel {
@@ -149,6 +155,7 @@ class SharedViewModel {
         val previousDir = previousDirs.pop()
         nextDirs.push(_workingDir.value)
         _workingDir.value = previousDir
+        refreshCurrentDir()
     }
 
     fun gotoNextDir() {
@@ -162,14 +169,23 @@ class SharedViewModel {
 
     fun addPasteBin(newFiles: List<DirEntry>, action: ClipboardAction) {
         if (newFiles.isEmpty()) return
-        println("Added to paste bin ${action.name} $newFiles")
+        viewModelScope.launch {
+            val message = if (action == ClipboardAction.Copy) {
+                "Copied files into clipboard"
+            } else {
+                "Cut files into clipboard"
+            }
+            _uiMessages.emit(
+                UIMessages.Info(message)
+            )
+        }
 
         _clipboardFiles.clear()
         _clipboardFiles.addAll(newFiles)
         _clipboardAction.value = action
     }
 
-    private fun refreshCurrentDir() {
+    fun refreshCurrentDir() {
         _trackedDirs.value = CustomPreferences.getTrackedDirs()
         _currentFiles.update {
             _workingDir.value?.let {
@@ -213,6 +229,38 @@ class SharedViewModel {
     suspend fun delete(files: List<DirEntry>) {
         deleteFiles(files)
         refreshCurrentDir()
-        println("Deleted ${files.size} files")
+        viewModelScope.launch {
+            _uiMessages.emit(
+                UIMessages.Info("Deleted ${files.size} files")
+            )
+        }
     }
+
+    /**
+     * Searches for tracked files or directories matching the given filename
+     */
+    suspend fun searchFilesWithName(filename: String, ignoreHiddenFiles: Boolean = true) =
+        withContext(Dispatchers.IO) {
+            _uiMessages.emit(
+                UIMessages.Info("Searching files...")
+            )
+
+            val trackedDirs = CustomPreferences.getTrackedDirs()
+            val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            val regex = Regex(".*$filename.*", RegexOption.IGNORE_CASE)
+
+            val results = trackedDirs.map {
+                scope.async {
+                    val dirEntries = listDirEntriesRecursive(it, ignoreHiddenFiles)
+                    dirEntries.filter { dirEntry -> regex.containsMatchIn(dirEntry.name) }
+                }
+            }
+            val foundFiles = results.awaitAll().flatten()
+            if (foundFiles.isEmpty()) {
+                _uiMessages.emit(
+                    UIMessages.Error("File with name '$filename' not found")
+                )
+            }
+            _currentFiles.value = foundFiles
+        }
 }

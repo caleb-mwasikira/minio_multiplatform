@@ -113,15 +113,15 @@ suspend fun takeDirSnapshot(path: String): List<FileSnapshot> = withContext(Disp
     // Coroutine to generate dir entry files
     scope.launch {
         val stack = Stack<DirEntry>()
-        val children = listDirEntries(path)
+        var children = listDirEntries(path)
         stack.pushMany(*children.toTypedArray())
 
-        while (!stack.isEmpty()) {
+        while (stack.isNotEmpty()) {
             val child =
-                stack.pop() ?: throw IllegalStateException("Stack isEmpty() function is broken")
+                stack.pop() ?: throw IllegalStateException("Stack isNotEmpty() function is broken")
             if (child.isDirectory) {
-                val moreChildren = listDirEntries(child.path)
-                stack.pushMany(*moreChildren.toTypedArray())
+                children = listDirEntries(child.path)
+                stack.pushMany(*children.toTypedArray())
                 continue
             }
             fileChannel.send(child)
@@ -148,3 +148,25 @@ expect fun getDirEntry(path: String): DirEntry?
  * List all files and folders in a given path
  */
 expect fun listDirEntries(path: String, ignoreHiddenFiles: Boolean = true): List<DirEntry>
+
+fun listDirEntriesRecursive(path: String, ignoreHiddenFiles: Boolean): List<DirEntry> {
+    val allFiles = mutableListOf<DirEntry>()
+
+    val stack = Stack<DirEntry>()
+    var children = listDirEntries(path)
+    allFiles.addAll(children.filter { it.isFile })
+    stack.pushMany(*children.filter { it.isDirectory }.toTypedArray())
+
+    while (stack.isNotEmpty()) {
+        val child =
+            stack.pop() ?: throw IllegalStateException("Stack isNotEmpty() function is broken")
+        if (child.isDirectory) {
+            children = listDirEntries(child.path, ignoreHiddenFiles)
+            allFiles.addAll(children.filter { it.isFile })
+            stack.pushMany(*children.filter { it.isDirectory }.toTypedArray())
+            continue
+        }
+        allFiles.add(child)
+    }
+    return allFiles
+}
