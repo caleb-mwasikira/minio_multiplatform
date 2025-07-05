@@ -21,10 +21,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,27 +43,29 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import minio_multiplatform.composeapp.generated.resources.Res
-import minio_multiplatform.composeapp.generated.resources.add_24dp
 import minio_multiplatform.composeapp.generated.resources.chevron_left_24dp
 import minio_multiplatform.composeapp.generated.resources.chevron_right_24dp
+import minio_multiplatform.composeapp.generated.resources.error_24dp
 import minio_multiplatform.composeapp.generated.resources.external_hard_drive
+import minio_multiplatform.composeapp.generated.resources.info_24dp
 import minio_multiplatform.composeapp.generated.resources.menu_24dp
 import minio_multiplatform.composeapp.generated.resources.notifications_24dp
 import minio_multiplatform.composeapp.generated.resources.search_24dp
 import minio_multiplatform.composeapp.generated.resources.send_24dp
 import minio_multiplatform.composeapp.generated.resources.visibility_24dp
 import minio_multiplatform.composeapp.generated.resources.visibility_off_24dp
+import minio_multiplatform.composeapp.generated.resources.warning_24dp
 import org.example.project.data.FileType
+import org.example.project.data.Msg
 import org.example.project.data.SharedViewModel
-import org.example.project.data.UIMessages
 import org.example.project.data.getFileIcon
-import org.example.project.widgets.AddNewDeviceDialog
 import org.example.project.widgets.DeviceCardExpanded
 import org.example.project.widgets.FilesGrid
 import org.jetbrains.compose.resources.DrawableResource
@@ -87,63 +87,21 @@ fun MainPanel(
             onOpenDrawer = onOpenDrawer,
         )
 
-        var addNewDevice by remember { mutableStateOf(false) }
         val trackedDevices by sharedViewModel.trackedDevices.collectAsState()
-
-        if (addNewDevice) {
-            AddNewDeviceDialog(
-                sharedViewModel = sharedViewModel,
-                onDismissRequest = {
-                    addNewDevice = false
-                },
-            )
-        }
-
-        if (trackedDevices.isEmpty()) {
-            ElevatedButton(
-                onClick = {
-                    addNewDevice = true
-                },
-                colors = ButtonDefaults.elevatedButtonColors().copy(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.padding(8.dp)
-                    .pointerHoverIcon(PointerIcon.Hand),
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(4.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(Res.drawable.add_24dp),
-                        contentDescription = "Sync With New Device",
-                        modifier = Modifier.padding(4.dp)
-                            .size(24.dp)
-                    )
-
-                    Text(
-                        "Sync New Device",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                }
-            }
-        } else {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-            ) {
-                trackedDevices.forEach { device ->
-                    DeviceCardExpanded(
-                        device = device,
-                        icon = Res.drawable.external_hard_drive,
-                        onClick = {},
-                    )
-                }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 4.dp)
+        ) {
+            trackedDevices.forEach { device ->
+                DeviceCardExpanded(
+                    device = device,
+                    sharedViewModel = sharedViewModel,
+                    icon = Res.drawable.external_hard_drive,
+                    onClick = {},
+                )
             }
         }
 
@@ -174,8 +132,9 @@ fun MainPanel(
 
             Box(
                 modifier = Modifier.align(Alignment.BottomEnd)
+                    .fillMaxWidth()
             ) {
-                var message by remember { mutableStateOf<UIMessages?>(null) }
+                var message by remember { mutableStateOf<Msg?>(null) }
 
                 LaunchedEffect(Unit) {
                     sharedViewModel.uiMessages.collectLatest {
@@ -187,8 +146,14 @@ fun MainPanel(
 
                 message?.let { msg ->
                     val containerColor = when (msg) {
-                        is UIMessages.Info -> MaterialTheme.colorScheme.primary
-                        is UIMessages.Warn, is UIMessages.Error -> MaterialTheme.colorScheme.secondary
+                        is Msg.Info -> MaterialTheme.colorScheme.primary
+                        is Msg.Warn -> MaterialTheme.colorScheme.scrim
+                        is Msg.Error -> MaterialTheme.colorScheme.error
+                    }
+                    val drawableIcon = when (msg) {
+                        is Msg.Info -> Res.drawable.info_24dp
+                        is Msg.Warn -> Res.drawable.warning_24dp
+                        is Msg.Error -> Res.drawable.error_24dp
                     }
 
                     Column {
@@ -199,21 +164,32 @@ fun MainPanel(
                         ) {
                             Card(
                                 modifier = Modifier
-                                    .padding(horizontal = 12.dp),
+                                    .padding(12.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = containerColor,
                                     contentColor = MaterialTheme.colorScheme.onPrimary
                                 ),
                             ) {
-                                Text(
-                                    msg.message,
-                                    style = MaterialTheme.typography.titleMedium,
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(
-                                        horizontal = 24.dp,
-                                        vertical = 16.dp
+                                        horizontal = 32.dp,
+                                        vertical = 24.dp
                                     )
-                                )
+                                ) {
+                                    Icon(
+                                        painter = painterResource(drawableIcon),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(
+                                        msg.message,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
                             }
                         }
                     }

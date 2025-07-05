@@ -4,12 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,10 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.launch
 import minio_multiplatform.composeapp.generated.resources.Res
-import minio_multiplatform.composeapp.generated.resources.devices_off_24dp
 import minio_multiplatform.composeapp.generated.resources.external_hard_drive
 import org.example.project.data.SharedViewModel
-import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun AddNewDeviceDialog(
@@ -51,11 +47,6 @@ fun AddNewDeviceDialog(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (onlineDevices.isEmpty()) {
-                Icon(
-                    painter = painterResource(Res.drawable.devices_off_24dp),
-                    contentDescription = "No devices found",
-                    modifier = Modifier.size(64.dp),
-                )
                 Text(
                     "No devices found within your local network",
                     style = MaterialTheme.typography.titleLarge,

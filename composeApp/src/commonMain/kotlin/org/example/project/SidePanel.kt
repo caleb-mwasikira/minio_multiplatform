@@ -22,6 +22,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -37,7 +39,7 @@ import minio_multiplatform.composeapp.generated.resources.folder
 import minio_multiplatform.composeapp.generated.resources.manage_history_24dp
 import minio_multiplatform.composeapp.generated.resources.share_24dp
 import minio_multiplatform.composeapp.generated.resources.star_24dp
-import org.example.project.data.Device
+import org.example.project.data.SharedViewModel
 import org.example.project.widgets.DeviceCard
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -45,6 +47,7 @@ import org.jetbrains.compose.resources.painterResource
 @Composable
 fun SidePanel(
     modifier: Modifier,
+    sharedViewModel: SharedViewModel,
     onUploadDirectory: () -> Unit,
 ) {
     Column(
@@ -60,17 +63,14 @@ fun SidePanel(
                 modifier = Modifier.padding(horizontal = 12.dp)
             )
 
-            DeviceCard(
-                device = Device(id = 1L, name = "Huawei"),
-                icon = Res.drawable.external_hard_drive,
-                onClick = {},
-            )
-
-            DeviceCard(
-                device = Device(id = 2L, name = "Macintosh"),
-                icon = Res.drawable.external_hard_drive,
-                onClick = {},
-            )
+            val trackedDevices by sharedViewModel.trackedDevices.collectAsState()
+            trackedDevices.forEach { device ->
+                DeviceCard(
+                    device = device,
+                    icon = Res.drawable.external_hard_drive,
+                    onClick = {},
+                )
+            }
 
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 64.dp),

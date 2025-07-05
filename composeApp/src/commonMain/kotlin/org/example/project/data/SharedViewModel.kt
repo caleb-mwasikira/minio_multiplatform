@@ -2,14 +2,7 @@ package org.example.project.data
 
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshotFlow
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.get
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -24,14 +17,16 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.example.project.data.http.HttpClient
+import org.example.project.data.http.isFail
 import kotlin.io.path.Path
 
-sealed class UIMessages {
+sealed class Msg {
     abstract val message: String
 
-    data class Error(override val message: String) : UIMessages()
-    data class Info(override val message: String) : UIMessages()
-    data class Warn(override val message: String) : UIMessages()
+    data class Error(override val message: String) : Msg()
+    data class Info(override val message: String) : Msg()
+    data class Warn(override val message: String) : Msg()
 }
 
 class SharedViewModel {
@@ -58,8 +53,7 @@ class SharedViewModel {
     private val _isOkayToPaste = MutableStateFlow(false)
     val isOkayToPaste = _isOkayToPaste.asStateFlow()
 
-    private val _uiMessages =
-        MutableSharedFlow<UIMessages>()
+    private val _uiMessages = MutableSharedFlow<Msg>()
     val uiMessages = _uiMessages.asSharedFlow()
 
     private val viewModelScope = CoroutineScope(Dispatchers.Default + Job())
@@ -127,7 +121,6 @@ class SharedViewModel {
     }
 
     private fun createRootDir(dirs: Set<String>): Set<DirEntry> {
-        println("Creating root directory...")
         return dirs.mapNotNull {
             getDirEntry(it)
         }.toSet()
@@ -151,7 +144,6 @@ class SharedViewModel {
     }
 
     fun refreshCurrentDir() {
-        println("Refreshing current dir...")
         _currentFiles.value = if (_workingDir.value == null) {
             createRootDir(_trackedDirs.value).toList()
         } else {
@@ -198,9 +190,7 @@ class SharedViewModel {
             } else {
                 "Cut files into clipboard"
             }
-            _uiMessages.emit(
-                UIMessages.Info(message)
-            )
+            _uiMessages.emit(Msg.Info(message))
         }
 
         _clipboardFiles.clear()
@@ -211,15 +201,14 @@ class SharedViewModel {
     suspend fun pasteFiles() {
         if (!_isOkayToPaste.value) {
             _uiMessages.emit(
-                UIMessages.Error("Paste action currently not permitted")
+                Msg.Error("Paste action currently not permitted")
             )
             return
         }
 
-        val errors = when (_clipboardAction.value!!) {
+        val clipboardErrors = when (_clipboardAction.value!!) {
             ClipboardAction.Copy -> {
-                // Setting overwrite == true is dangerous; we might end up overwriting user's files
-                // TODO: fixme - add prompt asking user if they wish to overwrite a file
+                // TODO: add prompt asking user if they wish to overwrite a file
                 FileOperations.copy(_clipboardFiles, _workingDir.value!!, true)
             }
 
@@ -227,11 +216,9 @@ class SharedViewModel {
                 FileOperations.move(_clipboardFiles, _workingDir.value!!, true)
             }
         }
-        errors.forEach {
+        clipboardErrors.forEach {
             val errMessage = it.exception?.message ?: return@forEach
-            _uiMessages.emit(
-                UIMessages.Error(errMessage)
-            )
+            _uiMessages.emit(Msg.Error(errMessage))
         }
         _clipboardFiles.clear()
         _clipboardAction.value = null
@@ -240,10 +227,10 @@ class SharedViewModel {
 
     suspend fun delete(files: List<DirEntry>) {
         if (files.isEmpty()) return
-        val fileErrors = FileOperations.delete(files)
-        fileErrors.forEach { fileError ->
-            fileError.exception?.message?.let {
-                _uiMessages.emit(UIMessages.Error(it))
+        val deleteErrors = FileOperations.delete(files)
+        deleteErrors.forEach { deleteError ->
+            deleteError.exception?.message?.let {
+                _uiMessages.emit(Msg.Error(it))
             }
         }
         refreshCurrentDir()
@@ -254,9 +241,7 @@ class SharedViewModel {
      */
     suspend fun search(filename: String, ignoreHiddenFiles: Boolean = true) =
         withContext(Dispatchers.IO) {
-            _uiMessages.emit(
-                UIMessages.Info("Searching files...")
-            )
+            _uiMessages.emit(Msg.Info("Searching files..."))
 
             val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
             val regex = Regex(".*$filename.*", RegexOption.IGNORE_CASE)
@@ -269,70 +254,94 @@ class SharedViewModel {
             val foundFiles = results.awaitAll().flatten()
             if (foundFiles.isEmpty()) {
                 _uiMessages.emit(
-                    UIMessages.Error("File with name '$filename' not found")
+                    Msg.Error("File with name '$filename' not found")
                 )
             }
             _currentFiles.value = foundFiles
         }
 
-    suspend fun trackNewDevice(device: Device) = withContext(Dispatchers.IO) {
-        val ok = LocalStore.trackNewDevice(device)
-        if (!ok) {
+    suspend fun trackNewDevice(device: Device): Unit = withContext(Dispatchers.IO) {
+        if (device.ip.isEmpty()) {
             _uiMessages.emit(
-                UIMessages.Error("Unexpected error syncing with device")
+                Msg.Error("Error syncing device; Missing IP address")
             )
             return@withContext
         }
+        val myDevice = getDevice().value ?: run {
+            _uiMessages.emit(
+                Msg.Error("Unexpected error syncing device")
+            )
+            return@withContext
+        }
+
+        try {
+            val port = 8080
+            HttpClient(device.ip, port).use { client ->
+                val response = client.post("/track-device", myDevice)
+                if (response.isFail() || response.body == null) {
+                    _uiMessages.emit(
+                        Msg.Error("Error syncing remote device")
+                    )
+                    return@use
+                }
+            }
+
+            val success = LocalStore.trackNewDevice(device)
+            if (!success) {
+                _uiMessages.emit(
+                    Msg.Error("Error syncing remote device")
+                )
+                return@withContext
+            }
+
+            println("Tracking new device; $device")
+            _uiMessages.emit(
+                Msg.Info("Tracking new device; ${device.name}")
+            )
+            _trackedDevices.value = LocalStore.getTrackedDevices()
+
+        } catch (e: Exception) {
+            _uiMessages.emit(
+                Msg.Error("Error syncing device")
+            )
+        }
+    }
+
+    suspend fun removeTrackedDevice(device: Device) = withContext(Dispatchers.IO) {
+        val success = LocalStore.removeTrackedDevice(device)
+        if (!success) {
+            _uiMessages.emit(
+                Msg.Error("Error tracking device")
+            )
+            return@withContext
+        }
+        _uiMessages.emit(
+            Msg.Info("Removed tracked device")
+        )
         _trackedDevices.value = LocalStore.getTrackedDevices()
     }
 
     suspend fun getOnlineDevices() = withContext(Dispatchers.IO) {
-        _uiMessages.emit(
-            UIMessages.Info("Searching for devices within your local network")
-        )
-        val networkDevices = Network.getNetworkDevices()
-        if (networkDevices.isEmpty()) {
-            _uiMessages.emit(
-                UIMessages.Info("No devices found within your local network")
-            )
-            return@withContext
-        }
+        _uiMessages.emit(Msg.Info("Searching online devices..."))
+        Network.getOnlineDevices()
+            .collect { device ->
+                println("device=$device")
 
-        val client = HttpClient(CIO) {
-            install(ContentNegotiation) {
-                json()
-            }
-        }
-        val onlineDevicesDeferred = networkDevices.map { networkDevice ->
-            val result: Deferred<Device?> = async(Dispatchers.IO) {
-                try {
-                    println("Connecting to network device $networkDevice...")
-                    val response = client.get("http://$networkDevice:8080/")
-                    val device: Device = response.body()
-                    println("Connected to device $networkDevice")
-                    return@async device
-
-                } catch (e: Exception) {
-                    println("Error connecting to network device $networkDevice; ${e.message}")
-                    return@async null
+                _onlineDevices.update { old ->
+                    val currentOnlineDevices: MutableList<Device> = old.toMutableList()
+                    val found = currentOnlineDevices.any { it.id == device.id }
+                    if (!found) {
+                        currentOnlineDevices += device
+                    }
+                    currentOnlineDevices
                 }
             }
-            return@map result
-        }
-        val onlineDevices = onlineDevicesDeferred.awaitAll().filterNotNull()
-        if (onlineDevices.isEmpty()) {
-            _uiMessages.emit(
-                UIMessages.Error("No connected devices found")
-            )
-        }
-        _onlineDevices.value = onlineDevices
-        return@withContext
     }
 
     suspend fun createNewFile(isDirectory: Boolean) = withContext(Dispatchers.IO) {
         if (_workingDir.value == null) {
             _uiMessages.emit(
-                UIMessages.Error("Cannot create new file at root directory")
+                Msg.Error("Cannot create new file at root directory")
             )
             return@withContext
         }
@@ -342,19 +351,19 @@ class SharedViewModel {
         if (ok) {
             refreshCurrentDir()
         } else {
-            _uiMessages.emit(UIMessages.Error("Error creating new file"))
+            _uiMessages.emit(Msg.Error("Error creating new file"))
         }
     }
 
     suspend fun rename(file: DirEntry, newFilename: String) = withContext(Dispatchers.IO) {
         if (newFilename.isEmpty()) {
-            _uiMessages.emit(UIMessages.Error("Filename cannot be empty"))
+            _uiMessages.emit(Msg.Error("Filename cannot be empty"))
             return@withContext
         }
 
         val ok = FileOperations.rename(file, newFilename)
         if (!ok) {
-            _uiMessages.emit(UIMessages.Error("Error renaming file"))
+            _uiMessages.emit(Msg.Error("Error renaming file"))
             return@withContext
         }
         refreshCurrentDir()

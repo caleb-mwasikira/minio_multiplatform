@@ -162,7 +162,7 @@ actual object FileOperations {
         return fileErrors
     }
 
-    actual fun createInternalFile(filename: String): File? {
+    actual fun getOrCreateInternalFile(filename: String): File? {
         return try {
             val context = ContextProvider.get()
             val file = File(context.filesDir, filename)

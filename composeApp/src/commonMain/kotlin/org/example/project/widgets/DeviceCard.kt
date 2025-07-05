@@ -6,28 +6,37 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import minio_multiplatform.composeapp.generated.resources.Res
+import minio_multiplatform.composeapp.generated.resources.delete_24dp
 import minio_multiplatform.composeapp.generated.resources.external_hard_drive
 import org.example.project.data.Device
+import org.example.project.data.SharedViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 
@@ -84,8 +93,11 @@ fun DeviceCard(
                 )
 
                 Text(
-                    "64 Gb / 128 Gb", // TODO: Replace with actual storage values
+                    device.id,
                     style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.width(148.dp)
                 )
             }
         }
@@ -95,6 +107,7 @@ fun DeviceCard(
 @Composable
 fun DeviceCardExpanded(
     device: Device,
+    sharedViewModel: SharedViewModel,
     icon: DrawableResource = Res.drawable.external_hard_drive,
     onClick: () -> Unit,
 ) {
@@ -110,6 +123,7 @@ fun DeviceCardExpanded(
     } else {
         MaterialTheme.colorScheme.scrim.copy(alpha = 0.8f)
     }
+    val scope = rememberCoroutineScope()
 
     Card(
         modifier = Modifier
@@ -122,39 +136,65 @@ fun DeviceCardExpanded(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(horizontal = 32.dp, vertical = 28.dp)
-        ) {
-            Image(
-                painter = painterResource(icon),
-                contentDescription = null,
-                modifier = Modifier.size(48.dp)
-            )
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(48.dp),
-                verticalAlignment = Alignment.CenterVertically
+        Box {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+                    .padding(horizontal = 32.dp, vertical = 28.dp)
             ) {
-                Column {
-                    Text(
-                        device.name,
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    )
+                Image(
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp)
+                )
 
-                    Text(
-                        "64 Gb / 128 Gb", // TODO: Replace with actual storage values
-                        style = MaterialTheme.typography.titleMedium,
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            device.name,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+
+                        Text(
+                            device.id,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.width(148.dp)
+                        )
+                    }
+
+                    CircularProgressIndicator(
+                        progress = { 0.6f },
+                        color = contentColor,
+                        trackColor = cardContainerColor,
                     )
                 }
+            }
 
-                CircularProgressIndicator(
-                    progress = { 0.6f },
-                    color = contentColor,
-                    trackColor = cardContainerColor,
-                )
+            Box(
+                modifier = Modifier.align(Alignment.TopEnd),
+            ) {
+                IconButton(
+                    onClick = {
+                        // Stop syncing device permanently
+                        scope.launch {
+                            sharedViewModel.removeTrackedDevice(device)
+                        }
+                    },
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(Res.drawable.delete_24dp),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
     }

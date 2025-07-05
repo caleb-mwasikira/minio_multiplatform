@@ -123,31 +123,29 @@ actual fun FilesGrid(
             )
         }
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(8.dp)
-        ) {
-            if (files.isEmpty()) {
-                item {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Image(
-                            painter = painterResource(Res.drawable.content_empty),
-                            contentDescription = null,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            "Empty directory",
-                            style = MaterialTheme.typography.headlineMedium,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            } else {
+        if (files.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Image(
+                    painter = painterResource(Res.drawable.content_empty),
+                    contentDescription = null,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "Empty directory",
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(8.dp)
+            ) {
                 items(count = files.size) { index ->
                     val file = files[index]
                     val isSelected = selectedFiles.contains(file)
@@ -187,6 +185,7 @@ actual fun FilesGrid(
                 }
             }
         }
+
 
         Box(
             modifier = Modifier

@@ -1,13 +1,12 @@
 package org.example.project.data
 
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withContext
-import java.net.InetAddress
+import kotlinx.serialization.json.Json
+import org.example.project.data.http.HttpClient
+import org.example.project.data.http.isSuccess
 import java.net.NetworkInterface
 import java.util.Collections
 
@@ -29,40 +28,38 @@ object Network {
         return null
     }
 
-    suspend fun getNetworkDevices(): List<String> = withContext(Dispatchers.IO) {
-        println("Running network discovery...")
-        val localIP = getLocalIPAddress() ?: run {
+    fun getOnlineDevices() = channelFlow<Device> {
+        println("Searching online devices...")
+
+        val localIPAddress = getLocalIPAddress() ?: run {
             println("Error acquiring local IP address")
-            return@withContext emptyList()
+            return@channelFlow
         }
-        val subnet = localIP.substringBeforeLast('.') // Get network address 192.168.0
+
+        val subnet = localIPAddress.substringBeforeLast('.')
         val semaphore = Semaphore(50)
-        val jobs = mutableListOf<Deferred<String?>>()
 
-        // Starting with 2 so that we do not fetch the network address 192.168.0.1
-        for (i in 2..254) {
-            val job: Deferred<String?> = async {
-                semaphore.withPermit {
-                    val ip = "$subnet.$i"
-                    if (ip == localIP) return@withPermit null
+        for (i in 1..254) {
+            val ip = "$subnet.$i"
+            if (ip == localIPAddress) continue
 
+            semaphore.withPermit {
+                launch {
                     try {
-                        val address = InetAddress.getByName(ip)
-                        if (address.isReachable(300)) {
-                            println("Device $ip online")
-                            return@withPermit ip
+                        val port = 8080
+                        HttpClient(ip, port).use { client ->
+                            val response = client.get("/")
+                            if (response.isSuccess() && response.body != null) {
+                                val device = Json.decodeFromString<Device>(response.body)
+                                send(device)
+                            }
                         }
-                        return@withPermit null
-                    } catch (e: Exception) {
-                        println("Error pinging device $ip; ${e.message}")
-                        return@withPermit null
+                    } catch (_: Exception) {
+                        // Ignore failed pings
                     }
                 }
             }
-            jobs += job
         }
-
-        val onlineDevices = jobs.awaitAll().filterNotNull()
-        return@withContext onlineDevices
     }
+
 }

@@ -137,7 +137,7 @@ actual object FileOperations {
             return@withContext fileErrors
         }
 
-    actual fun createInternalFile(filename: String): File? {
+    actual fun getOrCreateInternalFile(filename: String): File? {
         return try {
             val path = Path(System.getProperty("user.home"), ".minio", filename)
             val file = path.toFile()

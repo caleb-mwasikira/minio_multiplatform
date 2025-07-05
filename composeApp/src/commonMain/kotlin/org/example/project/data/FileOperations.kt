@@ -26,7 +26,7 @@ expect object FileOperations {
 
     suspend fun delete(files: List<DirEntry>): List<FileError>
 
-    fun createInternalFile(filename: String): File?
+    fun getOrCreateInternalFile(filename: String): File?
 
     suspend fun createExternalFile(
         filename: String,

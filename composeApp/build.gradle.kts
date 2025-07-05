@@ -38,16 +38,10 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtime.compose)
 
             implementation("androidx.compose:compose-bom:2025.02.00")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
 
             val ktorVersion = "3.1.3"
             implementation("io.ktor:ktor-server-core:$ktorVersion")
-            implementation("io.ktor:ktor-server-cio:$ktorVersion")
-            implementation("io.ktor:ktor-server-content-negotiation:$ktorVersion")
-            implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
-            implementation("io.ktor:ktor-server-call-logging:$ktorVersion")
-
-            implementation("io.ktor:ktor-client-cio:$ktorVersion")
-            implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -24,7 +24,7 @@ object LocalStore {
                 return _file!!
             }
 
-            val newFile = FileOperations.createInternalFile("synced_files.json")
+            val newFile = FileOperations.getOrCreateInternalFile("synced_files.json")
                 ?: throw IOException("Error creating internal file")
             _file = newFile
             return newFile
@@ -71,7 +71,7 @@ object LocalStore {
         }
 
         return@withContext try {
-            println("Taking dir snapshot of dir $dir...")
+            println("Taking dir snapshot $dir...")
             val elapsed = measureTimeMillis {
                 val snapshots = getSnapshotsOfAllFilesIn(dir)
                 store.trackedDirectories[dir] = snapshots
@@ -93,6 +93,11 @@ object LocalStore {
         val trackedDevices = store.trackedDevices
         if (trackedDevices.contains(device)) return false
         store.trackedDevices.add(device)
+        return save()
+    }
+
+    fun removeTrackedDevice(device: Device): Boolean {
+        store.trackedDevices.remove(device)
         return save()
     }
 }
